@@ -1,0 +1,10 @@
+name = "vaultic-auth"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+[vars]
+FRONTEND_URL = "http://localhost:5173"
+
+[[r2_buckets]]
+binding = "CONFIG_BUCKET"
+bucket_name = "vaultic-config"

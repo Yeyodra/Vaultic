@@ -1,0 +1,13 @@
+{
+  "name": "vaultic-storage",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250124.0",
+    "wrangler": "^3.109.0"
+  }
+}

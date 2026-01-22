@@ -1,0 +1,10 @@
+name = "vaultic-storage"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+[vars]
+AUTH_TOKEN = ""
+
+[[r2_buckets]]
+binding = "STORAGE_BUCKET"
+bucket_name = "vaultic-storage"
