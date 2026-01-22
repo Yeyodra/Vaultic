@@ -527,70 +527,70 @@ vaultic/
 
 | Task | Priority | Status |
 |------|----------|--------|
-| Initialize Tauri + Vite + React project | HIGH | [ ] |
-| Setup Tailwind CSS | HIGH | [ ] |
-| Install and configure shadcn/ui | HIGH | [ ] |
-| Setup Zustand stores (auth, providers, files) | HIGH | [ ] |
-| Create basic layout components | HIGH | [ ] |
-| Setup TypeScript types | HIGH | [ ] |
+| Initialize Tauri + Vite + React project | HIGH | [x] |
+| Setup Tailwind CSS | HIGH | [x] |
+| Install and configure shadcn/ui | HIGH | [x] |
+| Setup Zustand stores (auth, providers, files) | HIGH | [x] |
+| Create basic layout components | HIGH | [x] |
+| Setup TypeScript types | HIGH | [x] |
 
 ### Phase 2: Auth Worker
 
 | Task | Priority | Status |
 |------|----------|--------|
-| Create Auth Worker project (wrangler init) | HIGH | [ ] |
-| Setup R2 bucket for config storage | HIGH | [ ] |
-| Implement Google OAuth flow | HIGH | [ ] |
-| Implement JWT generation/validation | HIGH | [ ] |
-| Implement /config endpoints (GET/PUT) | HIGH | [ ] |
-| Implement /providers endpoints (CRUD) | HIGH | [ ] |
+| Create Auth Worker project (wrangler init) | HIGH | [x] |
+| Setup R2 bucket for config storage | HIGH | [x] |
+| Implement Google OAuth flow | HIGH | [x] |
+| Implement JWT generation/validation | HIGH | [x] |
+| Implement /config endpoints (GET/PUT) | HIGH | [x] |
+| Implement /providers endpoints (CRUD) | HIGH | [x] |
 | Deploy Auth Worker | HIGH | [ ] |
 
 ### Phase 3: Storage Worker Template
 
 | Task | Priority | Status |
 |------|----------|--------|
-| Create Storage Worker project | HIGH | [ ] |
-| Implement token validation middleware | HIGH | [ ] |
-| Implement file list endpoint | HIGH | [ ] |
-| Implement file upload (multipart) | HIGH | [ ] |
-| Implement file download (streaming) | HIGH | [ ] |
-| Implement file delete | HIGH | [ ] |
-| Implement storage stats endpoint | HIGH | [ ] |
+| Create Storage Worker project | HIGH | [x] |
+| Implement token validation middleware | HIGH | [x] |
+| Implement file list endpoint | HIGH | [x] |
+| Implement file upload (multipart) | HIGH | [x] |
+| Implement file download (streaming) | HIGH | [x] |
+| Implement file delete | HIGH | [x] |
+| Implement storage stats endpoint | HIGH | [x] |
 | Deploy Storage Worker | HIGH | [ ] |
 
 ### Phase 4: Frontend - Auth
 
 | Task | Priority | Status |
 |------|----------|--------|
-| Create Login page with Google OAuth button | HIGH | [ ] |
-| Implement OAuth callback handling | HIGH | [ ] |
-| Create auth store (Zustand) | HIGH | [ ] |
-| Implement token refresh logic | HIGH | [ ] |
-| Create protected route wrapper | HIGH | [ ] |
-| Handle logout | HIGH | [ ] |
+| Create Login page with Google OAuth button | HIGH | [x] |
+| Implement OAuth callback handling | HIGH | [x] |
+| Create auth store (Zustand) | HIGH | [x] |
+| Implement token refresh logic | HIGH | [x] |
+| Create protected route wrapper | HIGH | [x] |
+| Handle logout | HIGH | [x] |
 
 ### Phase 5: Frontend - Provider Management
 
 | Task | Priority | Status |
 |------|----------|--------|
-| Create provider store (Zustand) | HIGH | [ ] |
-| Create Settings page | HIGH | [ ] |
-| Create ProviderList component | HIGH | [ ] |
-| Create ProviderForm (add/edit) | HIGH | [ ] |
-| Implement provider test connection | HIGH | [ ] |
-| Implement provider delete | HIGH | [ ] |
+| Create provider store (Zustand) | HIGH | [x] |
+| Create Settings page | HIGH | [x] |
+| Create ProviderList component | HIGH | [x] |
+| Create ProviderForm (add/edit) | HIGH | [x] |
+| Implement provider test connection | HIGH | [x] |
+| Implement provider delete | HIGH | [x] |
 
 ### Phase 6: Frontend - File Browser
 
 | Task | Priority | Status |
 |------|----------|--------|
-| Create file store (Zustand) | HIGH | [ ] |
-| Create FileBrowser component | HIGH | [ ] |
-| Implement directory navigation | HIGH | [ ] |
-| Create file/folder icons | MEDIUM | [ ] |
+| Create file store (Zustand) | HIGH | [x] |
+| Create FileBrowser component | HIGH | [x] |
+| Implement directory navigation | HIGH | [x] |
+| Create file/folder icons | MEDIUM | [x] |
 | Implement file context menu | MEDIUM | [ ] |
-| Create breadcrumb navigation | MEDIUM | [ ] |
+| Create breadcrumb navigation | MEDIUM | [x] |
 
 ### Phase 7: Frontend - Upload
 
