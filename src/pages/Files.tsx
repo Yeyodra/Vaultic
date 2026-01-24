@@ -3,6 +3,7 @@ import { useProviderStore } from '@/stores/providerStore'
 import { useFileStore } from '@/stores/fileStore'
 import { useFiles } from '@/hooks/useFiles'
 import { toast } from '@/stores/toastStore'
+import { downloadFilesAsZip, triggerDownload } from '@/utils/zip'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -20,6 +21,7 @@ import {
   Home,
   Loader2,
   RefreshCw,
+  Archive,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { formatFileSize, formatDate } from '@/utils/format'
@@ -38,6 +40,7 @@ export function Files() {
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [isDownloading, setIsDownloading] = useState(false)
+  const [isZipping, setIsZipping] = useState(false)
   const [previewFile, setPreviewFile] = useState<FileMetadata | null>(null)
   const [previewOpen, setPreviewOpen] = useState(false)
 
@@ -88,6 +91,52 @@ export function Files() {
       setIsDownloading(false)
     }
   }, [selectedFileObjects, downloadFile])
+
+  // Handle download as ZIP
+  const handleDownloadAsZip = useCallback(async () => {
+    const filesToZip = selectedFileObjects.filter(f => !f.isDirectory)
+    if (filesToZip.length === 0) return
+
+    setIsZipping(true)
+    const toastId = toast.loading(`Preparing ${filesToZip.length} files for ZIP...`)
+
+    try {
+      const zipBlob = await downloadFilesAsZip(filesToZip, providers, (progress) => {
+        if (progress.phase === 'downloading') {
+          toast.updateToast(toastId, {
+            message: `Downloading ${progress.filesProcessed + 1}/${progress.totalFiles}: ${progress.currentFile}`,
+            type: 'loading'
+          })
+        } else if (progress.phase === 'compressing') {
+          toast.updateToast(toastId, {
+            message: 'Compressing files...',
+            type: 'loading'
+          })
+        }
+      })
+
+      // Generate filename with date
+      const date = new Date().toISOString().split('T')[0]
+      const filename = `vaultic-files-${date}.zip`
+      
+      triggerDownload(zipBlob, filename)
+
+      toast.updateToast(toastId, {
+        message: `Successfully created ${filename}`,
+        type: 'success'
+      })
+      setTimeout(() => toast.dismiss(toastId), 3000)
+    } catch (error) {
+      toast.updateToast(toastId, {
+        message: 'Failed to create ZIP file',
+        type: 'error'
+      })
+      setTimeout(() => toast.dismiss(toastId), 3000)
+      console.error('ZIP creation failed:', error)
+    } finally {
+      setIsZipping(false)
+    }
+  }, [selectedFileObjects, providers])
 
   // Handle delete
   const handleDelete = useCallback(async () => {
@@ -197,6 +246,19 @@ export function Files() {
                 <Download className="h-4 w-4 mr-2" />
               )}
               Download
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!hasDownloadableFiles || isZipping || selectedFileObjects.filter(f => !f.isDirectory).length < 2}
+              onClick={handleDownloadAsZip}
+            >
+              {isZipping ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Archive className="h-4 w-4 mr-2" />
+              )}
+              ZIP
             </Button>
             <Button
               variant="destructive"
