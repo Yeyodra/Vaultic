@@ -10,10 +10,11 @@ import {
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { UploadZone, type FileWithPath } from '@/components/UploadZone'
+import { UploadZone } from '@/components/UploadZone'
 import { useProviderStore } from '@/stores/providerStore'
 import { useUpload } from '@/hooks/useUpload'
 import { toast } from '@/stores/toastStore'
+import type { FileWithPath } from '@/api/types'
 import { Cloud, Check, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 

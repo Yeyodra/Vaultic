@@ -44,6 +44,11 @@ export interface FileMetadata {
   updatedAt: number;
 }
 
+// Extended File type with relative path for folder uploads
+export interface FileWithPath extends File {
+  relativePath?: string;
+}
+
 export interface UploadTask {
   id: string;
   localPath: string;

@@ -3,11 +3,7 @@ import { Upload, X, FileIcon, Folder, Cloud } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { formatFileSize } from '@/utils/format'
-
-// Extended File type with relative path
-export interface FileWithPath extends File {
-  relativePath?: string
-}
+import type { FileWithPath } from '@/api/types'
 
 interface UploadZoneProps {
   onFilesSelected: (files: FileWithPath[]) => void

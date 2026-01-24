@@ -2,8 +2,7 @@ import { useCallback } from 'react'
 import { useUploadStore } from '@/stores/uploadStore'
 import * as storageApi from '@/api/storage'
 import * as authApi from '@/api/auth'
-import type { ProviderConfig, UploadTask } from '@/api/types'
-import type { FileWithPath } from '@/components/UploadZone'
+import type { ProviderConfig, UploadTask, FileWithPath } from '@/api/types'
 
 export function useUpload() {
   const {
