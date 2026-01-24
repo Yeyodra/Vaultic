@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { useProviderStore } from '@/stores/providerStore'
 import { useFileStore } from '@/stores/fileStore'
+import { useFiles } from '@/hooks/useFiles'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -15,19 +16,25 @@ import {
   Trash2,
   ArrowLeft,
   Home,
+  Loader2,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { formatFileSize, formatDate } from '@/utils/format'
 import { UploadDialog } from '@/components/UploadDialog'
 import { UploadProgress } from '@/components/UploadProgress'
+import { DeleteConfirmDialog } from '@/components/DeleteConfirmDialog'
 
 export function Files() {
   const { providers } = useProviderStore()
   const { files, currentPath, setCurrentPath, selectedFiles, toggleFileSelection, clearSelection } = useFileStore()
+  const { downloadFile, deleteFiles } = useFiles()
+  
   const [selectedProvider, setSelectedProvider] = useState<string | null>(
     providers[0]?.id || null
   )
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [isDownloading, setIsDownloading] = useState(false)
 
   const pathParts = currentPath.split('/').filter(Boolean)
 
@@ -35,6 +42,44 @@ export function Files() {
     const parts = pathParts.slice(0, index + 1)
     setCurrentPath('/' + parts.join('/'))
   }
+
+  // Get selected provider config
+  const currentProvider = providers.find(p => p.id === selectedProvider)
+
+  // Get selected file objects
+  const selectedFileObjects = files.filter(f => selectedFiles.includes(f.key))
+
+  // Handle download
+  const handleDownload = useCallback(async () => {
+    if (!currentProvider || selectedFileObjects.length === 0) return
+
+    setIsDownloading(true)
+    try {
+      // Download files one by one (skip directories)
+      for (const file of selectedFileObjects) {
+        if (!file.isDirectory) {
+          await downloadFile(currentProvider, file)
+        }
+      }
+    } catch (error) {
+      console.error('Download failed:', error)
+    } finally {
+      setIsDownloading(false)
+    }
+  }, [currentProvider, selectedFileObjects, downloadFile])
+
+  // Handle delete
+  const handleDelete = useCallback(async () => {
+    if (!currentProvider || selectedFiles.length === 0) return
+    
+    await deleteFiles(currentProvider, selectedFiles)
+  }, [currentProvider, selectedFiles, deleteFiles])
+
+  // Get file names for delete confirmation
+  const selectedFileNames = selectedFileObjects.map(f => f.name)
+
+  // Check if any non-directory files are selected for download
+  const hasDownloadableFiles = selectedFileObjects.some(f => !f.isDirectory)
 
   return (
     <div className="min-h-screen bg-background">
@@ -52,22 +97,28 @@ export function Files() {
             </div>
           </div>
           <div className="flex gap-2">
-<Button variant="outline" size="sm" onClick={() => setUploadDialogOpen(true)}>
+            <Button variant="outline" size="sm" onClick={() => setUploadDialogOpen(true)}>
               <Upload className="h-4 w-4 mr-2" />
               Upload
             </Button>
             <Button
               variant="outline"
               size="sm"
-              disabled={selectedFiles.length === 0}
+              disabled={!hasDownloadableFiles || isDownloading}
+              onClick={handleDownload}
             >
-              <Download className="h-4 w-4 mr-2" />
+              {isDownloading ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4 mr-2" />
+              )}
               Download
             </Button>
             <Button
               variant="destructive"
               size="sm"
               disabled={selectedFiles.length === 0}
+              onClick={() => setDeleteDialogOpen(true)}
             >
               <Trash2 className="h-4 w-4 mr-2" />
               Delete
@@ -147,6 +198,7 @@ export function Files() {
                           <th className="p-3 w-8">
                             <input
                               type="checkbox"
+                              checked={selectedFiles.length === files.length && files.length > 0}
                               onChange={(e) => {
                                 if (e.target.checked) {
                                   files.forEach((f) => toggleFileSelection(f.key))
@@ -195,7 +247,7 @@ export function Files() {
                     </table>
                   )}
                 </ScrollArea>
-                </CardContent>
+              </CardContent>
             </Card>
           </main>
         </div>
@@ -206,6 +258,14 @@ export function Files() {
         open={uploadDialogOpen} 
         onOpenChange={setUploadDialogOpen}
         currentPath={currentPath}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <DeleteConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        fileNames={selectedFileNames}
+        onConfirm={handleDelete}
       />
 
       {/* Upload Progress Widget */}
