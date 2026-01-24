@@ -38,6 +38,22 @@ interface ProviderConfig {
   addedAt: number;
 }
 
+// File metadata - tracks which providers have each file
+interface FileMetadata {
+  key: string;           // e.g., "/documents/report.pdf"
+  name: string;          // e.g., "report.pdf"
+  size: number;
+  isDirectory: boolean;
+  providers: string[];   // provider IDs that have this file
+  createdAt: number;
+  updatedAt: number;
+}
+
+interface UserFiles {
+  files: FileMetadata[];
+  updatedAt: number;
+}
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
@@ -154,6 +170,20 @@ async function getUserConfig(env: Env, userId: string): Promise<UserConfig | nul
 
 async function saveUserConfig(env: Env, config: UserConfig): Promise<void> {
   await env.CONFIG_BUCKET.put(`users/${config.userId}.json`, JSON.stringify(config));
+}
+
+// File metadata functions
+async function getUserFiles(env: Env, userId: string): Promise<UserFiles> {
+  const obj = await env.CONFIG_BUCKET.get(`files/${userId}.json`);
+  if (!obj) {
+    return { files: [], updatedAt: Date.now() };
+  }
+  return obj.json();
+}
+
+async function saveUserFiles(env: Env, userId: string, userFiles: UserFiles): Promise<void> {
+  userFiles.updatedAt = Date.now();
+  await env.CONFIG_BUCKET.put(`files/${userId}.json`, JSON.stringify(userFiles));
 }
 
 export default {
@@ -556,6 +586,151 @@ export default {
       } catch {
         return jsonResponse({ success: false, message: 'Connection failed' }, 400);
       }
+    }
+
+    // ========================================
+    // FILES: List all files (unified view)
+    // ========================================
+    if (path === '/files' && request.method === 'GET') {
+      const user = await getAuthUser(request, env);
+      if (!user) {
+        return errorResponse('Unauthorized', 401);
+      }
+
+      const prefix = url.searchParams.get('prefix') || '/';
+      const userFiles = await getUserFiles(env, user.userId);
+      
+      // Filter files by prefix (folder path)
+      const filesInPath = userFiles.files.filter(f => {
+        if (prefix === '/') {
+          // Root: show only top-level items
+          const parts = f.key.split('/').filter(Boolean);
+          return parts.length === 1;
+        }
+        // Show items directly in this folder
+        const normalizedPrefix = prefix.endsWith('/') ? prefix : prefix + '/';
+        if (!f.key.startsWith(normalizedPrefix)) return false;
+        const remaining = f.key.slice(normalizedPrefix.length);
+        const parts = remaining.split('/').filter(Boolean);
+        return parts.length === 1;
+      });
+
+      return jsonResponse({ files: filesInPath });
+    }
+
+    // ========================================
+    // FILES: Add/Update file metadata (after upload)
+    // ========================================
+    if (path === '/files' && request.method === 'POST') {
+      const user = await getAuthUser(request, env);
+      if (!user) {
+        return errorResponse('Unauthorized', 401);
+      }
+
+      try {
+        const body = await request.json() as {
+          key: string;
+          name: string;
+          size: number;
+          isDirectory: boolean;
+          providerId: string;
+        };
+
+        const userFiles = await getUserFiles(env, user.userId);
+        const existingIndex = userFiles.files.findIndex(f => f.key === body.key);
+
+        if (existingIndex >= 0) {
+          // File exists, add provider if not already there
+          const file = userFiles.files[existingIndex];
+          if (!file.providers.includes(body.providerId)) {
+            file.providers.push(body.providerId);
+          }
+          file.size = body.size;
+          file.updatedAt = Date.now();
+        } else {
+          // New file
+          userFiles.files.push({
+            key: body.key,
+            name: body.name,
+            size: body.size,
+            isDirectory: body.isDirectory,
+            providers: [body.providerId],
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          });
+        }
+
+        await saveUserFiles(env, user.userId, userFiles);
+        return jsonResponse({ success: true });
+      } catch {
+        return errorResponse('Invalid request body', 400);
+      }
+    }
+
+    // ========================================
+    // FILES: Remove provider from file (after delete from provider)
+    // ========================================
+    if (path === '/files' && request.method === 'DELETE') {
+      const user = await getAuthUser(request, env);
+      if (!user) {
+        return errorResponse('Unauthorized', 401);
+      }
+
+      const key = url.searchParams.get('key');
+      const providerId = url.searchParams.get('providerId');
+
+      if (!key) {
+        return errorResponse('Key required', 400);
+      }
+
+      const userFiles = await getUserFiles(env, user.userId);
+      const fileIndex = userFiles.files.findIndex(f => f.key === key);
+
+      if (fileIndex === -1) {
+        return errorResponse('File not found', 404);
+      }
+
+      if (providerId) {
+        // Remove specific provider from file
+        const file = userFiles.files[fileIndex];
+        file.providers = file.providers.filter(p => p !== providerId);
+        
+        // If no providers left, remove file metadata entirely
+        if (file.providers.length === 0) {
+          userFiles.files.splice(fileIndex, 1);
+        }
+      } else {
+        // Remove file metadata entirely (deleted from all providers)
+        userFiles.files.splice(fileIndex, 1);
+      }
+
+      await saveUserFiles(env, user.userId, userFiles);
+      return jsonResponse({ success: true });
+    }
+
+    // ========================================
+    // FILES: Get single file metadata
+    // ========================================
+    const fileMatch = path.match(/^\/files\/info$/);
+    if (fileMatch && request.method === 'GET') {
+      const user = await getAuthUser(request, env);
+      if (!user) {
+        return errorResponse('Unauthorized', 401);
+      }
+
+      const key = url.searchParams.get('key');
+      if (!key) {
+        return errorResponse('Key required', 400);
+      }
+
+      const userFiles = await getUserFiles(env, user.userId);
+      const file = userFiles.files.find(f => f.key === key);
+
+      if (!file) {
+        return errorResponse('File not found', 404);
+      }
+
+      return jsonResponse({ file });
     }
 
     return errorResponse('Not found', 404);
