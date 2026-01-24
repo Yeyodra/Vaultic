@@ -1,31 +1,23 @@
 interface Env {
   CONFIG_BUCKET: R2Bucket;
-  GOOGLE_CLIENT_ID: string;
-  GOOGLE_CLIENT_SECRET: string;
+  USERS_KV: KVNamespace;
   JWT_SECRET: string;
   FRONTEND_URL: string;
 }
 
-interface GoogleTokenResponse {
-  access_token: string;
-  token_type: string;
-  expires_in: number;
-  refresh_token?: string;
-  id_token: string;
-}
-
-interface GoogleUserInfo {
+interface User {
   id: string;
   email: string;
   name: string;
-  picture: string;
+  passwordHash: string;
+  createdAt: number;
+  updatedAt: number;
 }
 
 interface UserConfig {
   userId: string;
   email: string;
   name: string;
-  picture: string;
   providers: ProviderConfig[];
   settings: {
     defaultUploadTargets: string[];
@@ -64,6 +56,20 @@ function jsonResponse(data: unknown, status = 200): Response {
 
 function errorResponse(message: string, status = 400): Response {
   return jsonResponse({ error: message }, status);
+}
+
+// Password hashing using Web Crypto API
+async function hashPassword(password: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function verifyPassword(password: string, hash: string): Promise<boolean> {
+  const passwordHash = await hashPassword(password);
+  return passwordHash === hash;
 }
 
 async function createJWT(payload: object, secret: string, expiresIn: number): Promise<string> {
@@ -159,105 +165,142 @@ export default {
       return new Response(null, { headers: corsHeaders });
     }
 
-    // OAuth: Start Google login
-    if (path === '/auth/google' && request.method === 'GET') {
-      const redirectUri = `${url.origin}/auth/callback`;
-      const scope = 'openid email profile';
-      const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
-      authUrl.searchParams.set('client_id', env.GOOGLE_CLIENT_ID);
-      authUrl.searchParams.set('redirect_uri', redirectUri);
-      authUrl.searchParams.set('response_type', 'code');
-      authUrl.searchParams.set('scope', scope);
-      authUrl.searchParams.set('access_type', 'offline');
-      authUrl.searchParams.set('prompt', 'consent');
-
-      return Response.redirect(authUrl.toString(), 302);
-    }
-
-    // OAuth: Handle callback
-    if (path === '/auth/callback' && request.method === 'GET') {
-      const code = url.searchParams.get('code');
-      if (!code) {
-        return Response.redirect(`${env.FRONTEND_URL}/login?error=no_code`, 302);
-      }
-
+    // ========================================
+    // AUTH: Register
+    // ========================================
+    if (path === '/auth/register' && request.method === 'POST') {
       try {
-        const redirectUri = `${url.origin}/auth/callback`;
-        const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({
-            code,
-            client_id: env.GOOGLE_CLIENT_ID,
-            client_secret: env.GOOGLE_CLIENT_SECRET,
-            redirect_uri: redirectUri,
-            grant_type: 'authorization_code',
-          }),
-        });
-
-        if (!tokenResponse.ok) {
-          return Response.redirect(`${env.FRONTEND_URL}/login?error=token_exchange`, 302);
+        const body = await request.json() as { email?: string; password?: string; name?: string };
+        
+        if (!body.email || !body.password) {
+          return errorResponse('Email and password required', 400);
         }
 
-        const tokens: GoogleTokenResponse = await tokenResponse.json();
-
-        const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
-          headers: { Authorization: `Bearer ${tokens.access_token}` },
-        });
-
-        if (!userInfoResponse.ok) {
-          return Response.redirect(`${env.FRONTEND_URL}/login?error=user_info`, 302);
+        if (body.password.length < 6) {
+          return errorResponse('Password must be at least 6 characters', 400);
         }
 
-        const userInfo: GoogleUserInfo = await userInfoResponse.json();
-
-        let config = await getUserConfig(env, userInfo.id);
-        if (!config) {
-          config = {
-            userId: userInfo.id,
-            email: userInfo.email,
-            name: userInfo.name,
-            picture: userInfo.picture,
-            providers: [],
-            settings: {
-              defaultUploadTargets: [],
-              theme: 'system',
-              quotaAlertThreshold: 80,
-            },
-            createdAt: Date.now(),
-            updatedAt: Date.now(),
-          };
-          await saveUserConfig(env, config);
-        } else {
-          config.name = userInfo.name;
-          config.picture = userInfo.picture;
-          config.updatedAt = Date.now();
-          await saveUserConfig(env, config);
+        // Check if user exists
+        const existingUser = await env.USERS_KV.get(`user:${body.email}`);
+        if (existingUser) {
+          return errorResponse('Email already registered', 409);
         }
 
+        // Create user
+        const userId = crypto.randomUUID();
+        const passwordHash = await hashPassword(body.password);
+        
+        const user: User = {
+          id: userId,
+          email: body.email,
+          name: body.name || body.email.split('@')[0],
+          passwordHash,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        };
+
+        // Save user to KV
+        await env.USERS_KV.put(`user:${body.email}`, JSON.stringify(user));
+        await env.USERS_KV.put(`userId:${userId}`, body.email);
+
+        // Create user config in R2
+        const config: UserConfig = {
+          userId,
+          email: body.email,
+          name: user.name,
+          providers: [],
+          settings: {
+            defaultUploadTargets: [],
+            theme: 'system',
+            quotaAlertThreshold: 80,
+          },
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        };
+        await saveUserConfig(env, config);
+
+        // Generate tokens
         const accessToken = await createJWT(
-          { userId: userInfo.id, email: userInfo.email },
+          { userId, email: body.email },
           env.JWT_SECRET,
-          3600
+          3600 // 1 hour
         );
         const refreshToken = await createJWT(
-          { userId: userInfo.id, email: userInfo.email, type: 'refresh' },
+          { userId, email: body.email, type: 'refresh' },
           env.JWT_SECRET,
-          14 * 24 * 3600
+          14 * 24 * 3600 // 14 days
         );
 
-        const callbackUrl = new URL(`${env.FRONTEND_URL}/auth/callback`);
-        callbackUrl.searchParams.set('token', accessToken);
-        callbackUrl.searchParams.set('refreshToken', refreshToken);
-
-        return Response.redirect(callbackUrl.toString(), 302);
-      } catch (error) {
-        console.error('OAuth error:', error);
-        return Response.redirect(`${env.FRONTEND_URL}/login?error=oauth_failed`, 302);
+        return jsonResponse({
+          success: true,
+          token: accessToken,
+          refreshToken,
+          user: {
+            userId,
+            email: body.email,
+            name: user.name,
+          },
+        });
+      } catch {
+        return errorResponse('Invalid request', 400);
       }
     }
 
-    // Refresh token
+    // ========================================
+    // AUTH: Login
+    // ========================================
+    if (path === '/auth/login' && request.method === 'POST') {
+      try {
+        const body = await request.json() as { email?: string; password?: string };
+        
+        if (!body.email || !body.password) {
+          return errorResponse('Email and password required', 400);
+        }
+
+        // Get user from KV
+        const userData = await env.USERS_KV.get(`user:${body.email}`);
+        if (!userData) {
+          return errorResponse('Invalid email or password', 401);
+        }
+
+        const user: User = JSON.parse(userData);
+
+        // Verify password
+        const validPassword = await verifyPassword(body.password, user.passwordHash);
+        if (!validPassword) {
+          return errorResponse('Invalid email or password', 401);
+        }
+
+        // Generate tokens
+        const accessToken = await createJWT(
+          { userId: user.id, email: user.email },
+          env.JWT_SECRET,
+          3600 // 1 hour
+        );
+        const refreshToken = await createJWT(
+          { userId: user.id, email: user.email, type: 'refresh' },
+          env.JWT_SECRET,
+          14 * 24 * 3600 // 14 days
+        );
+
+        return jsonResponse({
+          success: true,
+          token: accessToken,
+          refreshToken,
+          user: {
+            userId: user.id,
+            email: user.email,
+            name: user.name,
+          },
+        });
+      } catch {
+        return errorResponse('Invalid request', 400);
+      }
+    }
+
+    // ========================================
+    // AUTH: Refresh Token
+    // ========================================
     if (path === '/auth/refresh' && request.method === 'POST') {
       try {
         const body = await request.json() as { refreshToken?: string };
@@ -287,12 +330,37 @@ export default {
       }
     }
 
-    // Logout
+    // ========================================
+    // AUTH: Logout
+    // ========================================
     if (path === '/auth/logout' && request.method === 'POST') {
       return jsonResponse({ success: true });
     }
 
-    // Get config
+    // ========================================
+    // AUTH: Get current user
+    // ========================================
+    if (path === '/auth/me' && request.method === 'GET') {
+      const user = await getAuthUser(request, env);
+      if (!user) {
+        return errorResponse('Unauthorized', 401);
+      }
+
+      const config = await getUserConfig(env, user.userId);
+      if (!config) {
+        return errorResponse('User not found', 404);
+      }
+
+      return jsonResponse({
+        userId: config.userId,
+        email: config.email,
+        name: config.name,
+      });
+    }
+
+    // ========================================
+    // CONFIG: Get config
+    // ========================================
     if (path === '/config' && request.method === 'GET') {
       const user = await getAuthUser(request, env);
       if (!user) {
@@ -305,12 +373,17 @@ export default {
       }
 
       return jsonResponse({
+        userId: config.userId,
+        email: config.email,
+        name: config.name,
         providers: config.providers,
         settings: config.settings,
       });
     }
 
-    // Update config
+    // ========================================
+    // CONFIG: Update config
+    // ========================================
     if (path === '/config' && request.method === 'PUT') {
       const user = await getAuthUser(request, env);
       if (!user) {
@@ -323,9 +396,10 @@ export default {
       }
 
       try {
-        const body = await request.json() as Partial<Pick<UserConfig, 'providers' | 'settings'>>;
+        const body = await request.json() as Partial<Pick<UserConfig, 'providers' | 'settings' | 'name'>>;
         if (body.providers) config.providers = body.providers;
         if (body.settings) config.settings = { ...config.settings, ...body.settings };
+        if (body.name) config.name = body.name;
         config.updatedAt = Date.now();
         await saveUserConfig(env, config);
 
@@ -335,7 +409,9 @@ export default {
       }
     }
 
-    // List providers
+    // ========================================
+    // PROVIDERS: List
+    // ========================================
     if (path === '/providers' && request.method === 'GET') {
       const user = await getAuthUser(request, env);
       if (!user) {
@@ -350,7 +426,9 @@ export default {
       return jsonResponse({ providers: config.providers });
     }
 
-    // Add provider
+    // ========================================
+    // PROVIDERS: Add
+    // ========================================
     if (path === '/providers' && request.method === 'POST') {
       const user = await getAuthUser(request, env);
       if (!user) {
@@ -384,7 +462,9 @@ export default {
       }
     }
 
-    // Update provider
+    // ========================================
+    // PROVIDERS: Update
+    // ========================================
     const providerMatch = path.match(/^\/providers\/([^/]+)$/);
     if (providerMatch && request.method === 'PUT') {
       const user = await getAuthUser(request, env);
@@ -415,7 +495,9 @@ export default {
       }
     }
 
-    // Delete provider
+    // ========================================
+    // PROVIDERS: Delete
+    // ========================================
     if (providerMatch && request.method === 'DELETE') {
       const user = await getAuthUser(request, env);
       if (!user) {
@@ -440,7 +522,9 @@ export default {
       return jsonResponse({ success: true });
     }
 
-    // Test provider connection
+    // ========================================
+    // PROVIDERS: Test connection
+    // ========================================
     const testMatch = path.match(/^\/providers\/([^/]+)\/test$/);
     if (testMatch && request.method === 'POST') {
       const user = await getAuthUser(request, env);

@@ -3,6 +3,71 @@ import type { UserConfig, ProviderConfig } from './types'
 
 const AUTH_WORKER_URL = import.meta.env.VITE_AUTH_WORKER_URL || ''
 
+interface AuthResponse {
+  success: boolean
+  token: string
+  refreshToken: string
+  user: {
+    userId: string
+    email: string
+    name: string
+  }
+}
+
+// ========================================
+// LOGIN & REGISTER
+// ========================================
+
+export async function login(email: string, password: string): Promise<void> {
+  const response = await fetch(`${AUTH_WORKER_URL}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  })
+
+  if (!response.ok) {
+    const error = await response.json() as { error?: string }
+    throw new Error(error.error || 'Login failed')
+  }
+
+  const data = await response.json() as AuthResponse
+  const { setAuth } = useAuthStore.getState()
+  
+  setAuth(data.token, data.refreshToken, {
+    userId: data.user.userId,
+    email: data.user.email,
+    name: data.user.name,
+    picture: '',
+  })
+}
+
+export async function register(email: string, password: string, name?: string): Promise<void> {
+  const response = await fetch(`${AUTH_WORKER_URL}/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password, name }),
+  })
+
+  if (!response.ok) {
+    const error = await response.json() as { error?: string }
+    throw new Error(error.error || 'Registration failed')
+  }
+
+  const data = await response.json() as AuthResponse
+  const { setAuth } = useAuthStore.getState()
+  
+  setAuth(data.token, data.refreshToken, {
+    userId: data.user.userId,
+    email: data.user.email,
+    name: data.user.name,
+    picture: '',
+  })
+}
+
+// ========================================
+// AUTHENTICATED REQUESTS
+// ========================================
+
 async function fetchWithAuth(url: string, options: RequestInit = {}): Promise<Response> {
   const { token, refreshToken, setAuth, logout } = useAuthStore.getState()
 

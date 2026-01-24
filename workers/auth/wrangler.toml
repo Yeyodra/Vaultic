@@ -1,10 +1,37 @@
 name = "vaultic-auth"
 main = "src/index.ts"
 compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# ============================================
+# CONFIGURATION
+# ============================================
 
 [vars]
+# Frontend URL - update sesuai deployment
+# Development: http://localhost:5173
+# Production: https://vaultic.pages.dev atau domain kamu
 FRONTEND_URL = "http://localhost:5173"
 
+# ============================================
+# SECRETS - Set via wrangler secret put
+# ============================================
+# Run this command to set JWT secret:
+#   wrangler secret put JWT_SECRET
+#
+# Generate random string (min 32 chars):
+#   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+
+# ============================================
+# KV NAMESPACE (User accounts)
+# ============================================
+[[kv_namespaces]]
+binding = "USERS_KV"
+id = "" # Will be filled after: wrangler kv namespace create USERS_KV
+
+# ============================================
+# R2 BUCKET (User configs)
+# ============================================
 [[r2_buckets]]
 binding = "CONFIG_BUCKET"
 bucket_name = "vaultic-config"
