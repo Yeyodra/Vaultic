@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from 'react'
 import { useProviderStore } from '@/stores/providerStore'
 import { useFileStore } from '@/stores/fileStore'
 import { useFiles } from '@/hooks/useFiles'
+import { toast } from '@/stores/toastStore'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -59,13 +60,28 @@ export function Files() {
     if (selectedFileObjects.length === 0) return
 
     setIsDownloading(true)
+    const toastId = toast.loading(`Downloading ${selectedFileObjects.length} file${selectedFileObjects.length > 1 ? 's' : ''}...`)
+    
     try {
+      let successCount = 0
       for (const file of selectedFileObjects) {
         if (!file.isDirectory) {
           await downloadFile(file)
+          successCount++
         }
       }
+      
+      toast.updateToast(toastId, {
+        message: `Successfully downloaded ${successCount} file${successCount > 1 ? 's' : ''}`,
+        type: 'success'
+      })
+      setTimeout(() => toast.dismiss(toastId), 3000)
     } catch (error) {
+      toast.updateToast(toastId, {
+        message: 'Download failed',
+        type: 'error'
+      })
+      setTimeout(() => toast.dismiss(toastId), 3000)
       console.error('Download failed:', error)
     } finally {
       setIsDownloading(false)
@@ -75,8 +91,24 @@ export function Files() {
   // Handle delete
   const handleDelete = useCallback(async () => {
     if (selectedFiles.length === 0) return
-    await deleteFiles(selectedFiles)
-    setDeleteDialogOpen(false)
+    
+    const toastId = toast.loading(`Deleting ${selectedFiles.length} file${selectedFiles.length > 1 ? 's' : ''}...`)
+    
+    try {
+      await deleteFiles(selectedFiles)
+      toast.updateToast(toastId, {
+        message: `Successfully deleted ${selectedFiles.length} file${selectedFiles.length > 1 ? 's' : ''}`,
+        type: 'success'
+      })
+      setTimeout(() => toast.dismiss(toastId), 3000)
+      setDeleteDialogOpen(false)
+    } catch (error) {
+      toast.updateToast(toastId, {
+        message: 'Delete failed',
+        type: 'error'
+      })
+      setTimeout(() => toast.dismiss(toastId), 3000)
+    }
   }, [selectedFiles, deleteFiles])
 
   // Handle refresh
@@ -103,7 +135,23 @@ export function Files() {
   // Handle preview download
   const handlePreviewDownload = useCallback(async (providerId: string) => {
     if (!previewFile) return
-    await downloadFile(previewFile, providerId)
+    
+    const toastId = toast.loading(`Downloading ${previewFile.name}...`)
+    
+    try {
+      await downloadFile(previewFile, providerId)
+      toast.updateToast(toastId, {
+        message: `Successfully downloaded ${previewFile.name}`,
+        type: 'success'
+      })
+      setTimeout(() => toast.dismiss(toastId), 3000)
+    } catch (error) {
+      toast.updateToast(toastId, {
+        message: `Failed to download ${previewFile.name}`,
+        type: 'error'
+      })
+      setTimeout(() => toast.dismiss(toastId), 3000)
+    }
   }, [previewFile, downloadFile])
 
   // Get providers that have the preview file

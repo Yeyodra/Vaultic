@@ -6,6 +6,7 @@ import { AuthCallback } from '@/pages/AuthCallback'
 import { Dashboard } from '@/pages/Dashboard'
 import { Files } from '@/pages/Files'
 import { Settings } from '@/pages/Settings'
+import { Toaster } from '@/components/Toaster'
 import { useEffect } from 'react'
 import * as authApi from '@/api/auth'
 
@@ -91,6 +92,7 @@ function App() {
   return (
     <BrowserRouter>
       <AppContent />
+      <Toaster />
     </BrowserRouter>
   )
 }

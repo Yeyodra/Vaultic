@@ -13,6 +13,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { UploadZone } from '@/components/UploadZone'
 import { useProviderStore } from '@/stores/providerStore'
 import { useUpload } from '@/hooks/useUpload'
+import { toast } from '@/stores/toastStore'
 import { Cloud, Check, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -55,11 +56,21 @@ export function UploadDialog({ open, onOpenChange, currentPath }: UploadDialogPr
       selectedProviders.includes(p.id)
     )
 
-    await uploadFiles(filesToUpload, selectedProviderConfigs, currentPath)
-    
-    // Reset and close
-    setFilesToUpload([])
-    onOpenChange(false)
+    try {
+      await uploadFiles(filesToUpload, selectedProviderConfigs, currentPath)
+      
+      const fileCount = filesToUpload.length
+      const providerCount = selectedProviders.length
+      toast.success(
+        `Successfully uploaded ${fileCount} file${fileCount > 1 ? 's' : ''} to ${providerCount} provider${providerCount > 1 ? 's' : ''}`
+      )
+      
+      // Reset and close
+      setFilesToUpload([])
+      onOpenChange(false)
+    } catch (error) {
+      toast.error('Upload failed. Please try again.')
+    }
   }, [filesToUpload, selectedProviders, providers, uploadFiles, currentPath, onOpenChange])
 
   const handleClose = useCallback(() => {
