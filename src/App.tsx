@@ -1,11 +1,13 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
+import { useProviderStore } from '@/stores/providerStore'
 import { Login } from '@/pages/Login'
 import { AuthCallback } from '@/pages/AuthCallback'
 import { Dashboard } from '@/pages/Dashboard'
 import { Files } from '@/pages/Files'
 import { Settings } from '@/pages/Settings'
 import { useEffect } from 'react'
+import * as authApi from '@/api/auth'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuthStore()
@@ -25,6 +27,55 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
+function AppContent() {
+  const { isAuthenticated } = useAuthStore()
+  const { setProviders } = useProviderStore()
+
+  // Fetch providers from cloud when authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      authApi.getConfig()
+        .then((config) => {
+          setProviders(config.providers || [])
+        })
+        .catch((error) => {
+          console.error('Failed to fetch config:', error)
+        })
+    }
+  }, [isAuthenticated, setProviders])
+
+  return (
+    <Routes>
+      <Route path="/login" element={<Login />} />
+      <Route path="/auth/callback" element={<AuthCallback />} />
+      <Route
+        path="/"
+        element={
+          <ProtectedRoute>
+            <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/files"
+        element={
+          <ProtectedRoute>
+            <Files />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/settings"
+        element={
+          <ProtectedRoute>
+            <Settings />
+          </ProtectedRoute>
+        }
+      />
+    </Routes>
+  )
+}
+
 function App() {
   const { setLoading, token } = useAuthStore()
 
@@ -39,34 +90,7 @@ function App() {
 
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/auth/callback" element={<AuthCallback />} />
-        <Route
-          path="/"
-          element={
-            <ProtectedRoute>
-              <Dashboard />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/files"
-          element={
-            <ProtectedRoute>
-              <Files />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/settings"
-          element={
-            <ProtectedRoute>
-              <Settings />
-            </ProtectedRoute>
-          }
-        />
-      </Routes>
+      <AppContent />
     </BrowserRouter>
   )
 }

@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useProviderStore } from '@/stores/providerStore'
 import { useFileStore } from '@/stores/fileStore'
 import { useFiles } from '@/hooks/useFiles'
@@ -29,7 +29,7 @@ import type { FileEntry } from '@/api/types'
 export function Files() {
   const { providers } = useProviderStore()
   const { files, currentPath, setCurrentPath, selectedFiles, toggleFileSelection, clearSelection } = useFileStore()
-  const { downloadFile, deleteFiles } = useFiles()
+  const { downloadFile, deleteFiles, fetchFiles } = useFiles()
   
   const [selectedProvider, setSelectedProvider] = useState<string | null>(
     providers[0]?.id || null
@@ -40,15 +40,30 @@ export function Files() {
   const [previewFile, setPreviewFile] = useState<FileEntry | null>(null)
   const [previewOpen, setPreviewOpen] = useState(false)
 
+  // Get selected provider config
+  const currentProvider = providers.find(p => p.id === selectedProvider)
+
+  // Fetch files when provider or path changes
+  useEffect(() => {
+    const provider = providers.find(p => p.id === selectedProvider)
+    if (provider) {
+      fetchFiles(provider, currentPath)
+    }
+  }, [selectedProvider, currentPath, providers, fetchFiles])
+
+  // Handle provider selection change
+  const handleSelectProvider = (providerId: string) => {
+    setSelectedProvider(providerId)
+    setCurrentPath('/') // Reset to root when switching providers
+    clearSelection()
+  }
+
   const pathParts = currentPath.split('/').filter(Boolean)
 
   const navigateTo = (index: number) => {
     const parts = pathParts.slice(0, index + 1)
     setCurrentPath('/' + parts.join('/'))
   }
-
-  // Get selected provider config
-  const currentProvider = providers.find(p => p.id === selectedProvider)
 
   // Get selected file objects
   const selectedFileObjects = files.filter(f => selectedFiles.includes(f.key))
@@ -161,7 +176,7 @@ export function Files() {
                   {providers.map((provider) => (
                     <button
                       key={provider.id}
-                      onClick={() => setSelectedProvider(provider.id)}
+                      onClick={() => handleSelectProvider(provider.id)}
                       className={`w-full flex items-center gap-2 px-4 py-2 text-left hover:bg-muted transition-colors ${
                         selectedProvider === provider.id ? 'bg-muted' : ''
                       }`}

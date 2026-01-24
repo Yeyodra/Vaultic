@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useAuthStore } from '@/stores/authStore'
-import { useProviderStore } from '@/stores/providerStore'
+import { useProviders } from '@/hooks/useProviders'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -16,15 +16,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import { Cloud, Plus, Trash2, Edit, ArrowLeft, Check } from 'lucide-react'
+import { Cloud, Plus, Trash2, Edit, ArrowLeft, Check, Loader2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import type { ProviderConfig } from '@/api/types'
 
 export function Settings() {
   const { user } = useAuthStore()
-  const { providers, addProvider, removeProvider, updateProvider } = useProviderStore()
+  const { providers, addProvider, removeProvider, updateProvider } = useProviders()
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [editingProvider, setEditingProvider] = useState<ProviderConfig | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
 
   const [newProvider, setNewProvider] = useState({
     name: '',
@@ -32,25 +33,49 @@ export function Settings() {
     authToken: '',
   })
 
-  const handleAddProvider = () => {
-    const provider: ProviderConfig = {
-      id: crypto.randomUUID(),
-      name: newProvider.name,
-      type: 'r2_worker',
-      workerUrl: newProvider.workerUrl,
-      authToken: newProvider.authToken,
-      isActive: true,
-      addedAt: Date.now(),
+  const handleAddProvider = async () => {
+    if (!newProvider.name || !newProvider.workerUrl || !newProvider.authToken) return
+    
+    setIsSaving(true)
+    try {
+      await addProvider({
+        name: newProvider.name,
+        workerUrl: newProvider.workerUrl,
+        authToken: newProvider.authToken,
+      })
+      setNewProvider({ name: '', workerUrl: '', authToken: '' })
+      setIsAddDialogOpen(false)
+    } catch (error) {
+      console.error('Failed to add provider:', error)
+      alert('Gagal menambahkan provider. Pastikan Worker URL dan Auth Token benar.')
+    } finally {
+      setIsSaving(false)
     }
-    addProvider(provider)
-    setNewProvider({ name: '', workerUrl: '', authToken: '' })
-    setIsAddDialogOpen(false)
   }
 
-  const handleUpdateProvider = () => {
-    if (editingProvider) {
-      updateProvider(editingProvider.id, editingProvider)
+  const handleUpdateProvider = async () => {
+    if (!editingProvider) return
+    
+    setIsSaving(true)
+    try {
+      await updateProvider(editingProvider.id, editingProvider)
       setEditingProvider(null)
+    } catch (error) {
+      console.error('Failed to update provider:', error)
+      alert('Gagal mengupdate provider.')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleRemoveProvider = async (id: string) => {
+    if (!confirm('Yakin ingin menghapus provider ini?')) return
+    
+    try {
+      await removeProvider(id)
+    } catch (error) {
+      console.error('Failed to remove provider:', error)
+      alert('Gagal menghapus provider.')
     }
   }
 
@@ -136,10 +161,19 @@ export function Settings() {
                         </div>
                       </div>
                       <DialogFooter>
-                        <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                        <Button variant="outline" onClick={() => setIsAddDialogOpen(false)} disabled={isSaving}>
                           Cancel
                         </Button>
-                        <Button onClick={handleAddProvider}>Add Provider</Button>
+                        <Button onClick={handleAddProvider} disabled={isSaving}>
+                          {isSaving ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Adding...
+                            </>
+                          ) : (
+                            'Add Provider'
+                          )}
+                        </Button>
                       </DialogFooter>
                     </DialogContent>
                   </Dialog>
@@ -182,10 +216,10 @@ export function Settings() {
                           >
                             <Edit className="h-4 w-4" />
                           </Button>
-                          <Button
+                        <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => removeProvider(provider.id)}
+                            onClick={() => handleRemoveProvider(provider.id)}
                           >
                             <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>
