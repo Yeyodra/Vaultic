@@ -27,7 +27,7 @@ FRONTEND_URL = "http://localhost:5173"
 # ============================================
 [[kv_namespaces]]
 binding = "USERS_KV"
-id = "" # Will be filled after: wrangler kv namespace create USERS_KV
+id = "1c8f25d67e0a4a058afb8a6f6a7adf3a"
 
 # ============================================
 # R2 BUCKET (User configs)
