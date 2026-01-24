@@ -23,6 +23,8 @@ import { formatFileSize, formatDate } from '@/utils/format'
 import { UploadDialog } from '@/components/UploadDialog'
 import { UploadProgress } from '@/components/UploadProgress'
 import { DeleteConfirmDialog } from '@/components/DeleteConfirmDialog'
+import { FilePreviewDialog } from '@/components/FilePreviewDialog'
+import type { FileEntry } from '@/api/types'
 
 export function Files() {
   const { providers } = useProviderStore()
@@ -35,6 +37,8 @@ export function Files() {
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [isDownloading, setIsDownloading] = useState(false)
+  const [previewFile, setPreviewFile] = useState<FileEntry | null>(null)
+  const [previewOpen, setPreviewOpen] = useState(false)
 
   const pathParts = currentPath.split('/').filter(Boolean)
 
@@ -80,6 +84,24 @@ export function Files() {
 
   // Check if any non-directory files are selected for download
   const hasDownloadableFiles = selectedFileObjects.some(f => !f.isDirectory)
+
+  // Handle file preview (double click)
+  const handleFileDoubleClick = useCallback((file: FileEntry) => {
+    if (file.isDirectory) {
+      // Navigate into folder
+      setCurrentPath(file.key)
+    } else {
+      // Open preview
+      setPreviewFile(file)
+      setPreviewOpen(true)
+    }
+  }, [setCurrentPath])
+
+  // Handle preview download
+  const handlePreviewDownload = useCallback(async () => {
+    if (!currentProvider || !previewFile) return
+    await downloadFile(currentProvider, previewFile)
+  }, [currentProvider, previewFile, downloadFile])
 
   return (
     <div className="min-h-screen bg-background">
@@ -219,6 +241,7 @@ export function Files() {
                             key={file.key}
                             className="border-b hover:bg-muted/50 cursor-pointer"
                             onClick={() => toggleFileSelection(file.key)}
+                            onDoubleClick={() => handleFileDoubleClick(file)}
                           >
                             <td className="p-3">
                               <input
@@ -266,6 +289,15 @@ export function Files() {
         onOpenChange={setDeleteDialogOpen}
         fileNames={selectedFileNames}
         onConfirm={handleDelete}
+      />
+
+      {/* File Preview Dialog */}
+      <FilePreviewDialog
+        open={previewOpen}
+        onOpenChange={setPreviewOpen}
+        file={previewFile}
+        provider={currentProvider || null}
+        onDownload={handlePreviewDownload}
       />
 
       {/* Upload Progress Widget */}
