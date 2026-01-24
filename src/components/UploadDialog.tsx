@@ -10,7 +10,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { UploadZone } from '@/components/UploadZone'
+import { UploadZone, type FileWithPath } from '@/components/UploadZone'
 import { useProviderStore } from '@/stores/providerStore'
 import { useUpload } from '@/hooks/useUpload'
 import { toast } from '@/stores/toastStore'
@@ -29,7 +29,7 @@ export function UploadDialog({ open, onOpenChange, currentPath }: UploadDialogPr
   const [selectedProviders, setSelectedProviders] = useState<string[]>(() => 
     providers.filter(p => p.isActive).map(p => p.id)
   )
-  const [filesToUpload, setFilesToUpload] = useState<File[]>([])
+  const [filesToUpload, setFilesToUpload] = useState<FileWithPath[]>([])
 
   const activeProviders = providers.filter(p => p.isActive)
 

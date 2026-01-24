@@ -3,6 +3,7 @@ import { useUploadStore } from '@/stores/uploadStore'
 import * as storageApi from '@/api/storage'
 import * as authApi from '@/api/auth'
 import type { ProviderConfig, UploadTask } from '@/api/types'
+import type { FileWithPath } from '@/components/UploadZone'
 
 export function useUpload() {
   const {
@@ -17,15 +18,30 @@ export function useUpload() {
 
   const uploadFile = useCallback(
     async (
-      file: File,
+      file: FileWithPath,
       providers: ProviderConfig[],
-      path: string = '/'
+      basePath: string = '/'
     ) => {
+      // Calculate the full path including folder structure
+      const relativePath = file.relativePath || file.name
+      const fileName = relativePath.split('/').pop() || file.name
+      
+      // Build the upload path
+      // If file has a folder structure (e.g., "folder1/folder2/file.txt")
+      // and basePath is "/", the final path should be "/folder1/folder2"
+      const folderPart = relativePath.includes('/') 
+        ? relativePath.split('/').slice(0, -1).join('/')
+        : ''
+      
+      const uploadPath = basePath === '/'
+        ? (folderPart ? `/${folderPart}` : '/')
+        : (folderPart ? `${basePath}/${folderPart}` : basePath)
+
       const taskId = crypto.randomUUID()
       const task: UploadTask = {
         id: taskId,
-        localPath: file.name,
-        remotePath: path,
+        localPath: relativePath, // Show full relative path in UI
+        remotePath: uploadPath,
         targetProviders: providers.map((p) => p.id),
         status: 'pending',
         progress: Object.fromEntries(providers.map((p) => [p.id, 0])),
@@ -37,7 +53,7 @@ export function useUpload() {
       const results = await storageApi.uploadToMultipleProviders(
         providers,
         file,
-        path,
+        uploadPath,
         (providerId, progress) => {
           updateProgress(taskId, providerId, progress)
         }
@@ -49,7 +65,7 @@ export function useUpload() {
           try {
             await authApi.addFileMetadata({
               key: result.key, // Use key from upload response
-              name: file.name,
+              name: fileName,
               size: file.size,
               isDirectory: false,
               providerId,
@@ -78,7 +94,7 @@ export function useUpload() {
 
   const uploadFiles = useCallback(
     async (
-      files: File[],
+      files: FileWithPath[],
       providers: ProviderConfig[],
       path: string = '/'
     ) => {
