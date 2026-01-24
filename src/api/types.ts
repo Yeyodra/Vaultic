@@ -23,6 +23,7 @@ export interface ProviderConfig {
   addedAt: number;
 }
 
+// Old FileEntry (per provider) - keeping for backward compatibility
 export interface FileEntry {
   key: string;
   name: string;
@@ -30,6 +31,17 @@ export interface FileEntry {
   lastModified: number;
   isDirectory: boolean;
   providerId: string;
+}
+
+// New FileMetadata (unified view) - file exists across multiple providers
+export interface FileMetadata {
+  key: string;
+  name: string;
+  size: number;
+  isDirectory: boolean;
+  providers: string[];  // provider IDs that have this file
+  createdAt: number;
+  updatedAt: number;
 }
 
 export interface UploadTask {

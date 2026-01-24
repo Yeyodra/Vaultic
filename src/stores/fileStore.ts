@@ -1,13 +1,13 @@
 import { create } from 'zustand'
-import type { FileEntry } from '@/api/types'
+import type { FileMetadata } from '@/api/types'
 
 interface FileState {
-  files: FileEntry[]
+  files: FileMetadata[]
   currentPath: string
   selectedFiles: string[]
   isLoading: boolean
 
-  setFiles: (files: FileEntry[]) => void
+  setFiles: (files: FileMetadata[]) => void
   setCurrentPath: (path: string) => void
   selectFile: (key: string) => void
   deselectFile: (key: string) => void

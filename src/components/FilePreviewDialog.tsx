@@ -7,6 +7,7 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Badge } from '@/components/ui/badge'
 import {
   Download,
   X,
@@ -16,6 +17,7 @@ import {
   Music,
   FileIcon,
   Loader2,
+  Cloud,
 } from 'lucide-react'
 import type { FileEntry, ProviderConfig } from '@/api/types'
 import * as storageApi from '@/api/storage'
@@ -24,8 +26,8 @@ interface FilePreviewDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   file: FileEntry | null
-  provider: ProviderConfig | null
-  onDownload: () => void
+  providers: ProviderConfig[]  // All providers that have this file
+  onDownload: (providerId: string) => void
 }
 
 type PreviewType = 'image' | 'video' | 'audio' | 'pdf' | 'text' | 'unsupported'
@@ -73,19 +75,33 @@ export function FilePreviewDialog({
   open,
   onOpenChange,
   file,
-  provider,
+  providers,
   onDownload,
 }: FilePreviewDialogProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [blobUrl, setBlobUrl] = useState<string | null>(null)
   const [textContent, setTextContent] = useState<string | null>(null)
+  const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null)
+  const [showProviderMenu, setShowProviderMenu] = useState(false)
 
   const previewType = file ? getPreviewType(file.name) : 'unsupported'
+  
+  // Get the selected provider or first available
+  const currentProvider = selectedProviderId 
+    ? providers.find(p => p.id === selectedProviderId) 
+    : providers[0]
+
+  // Reset selected provider when file changes
+  useEffect(() => {
+    if (providers.length > 0) {
+      setSelectedProviderId(providers[0].id)
+    }
+  }, [file, providers])
 
   // Load file content when dialog opens
   useEffect(() => {
-    if (!open || !file || !provider) {
+    if (!open || !file || !currentProvider) {
       setBlobUrl(null)
       setTextContent(null)
       setError(null)
@@ -101,7 +117,7 @@ export function FilePreviewDialog({
       setError(null)
 
       try {
-        const blob = await storageApi.downloadFile(provider, file.key)
+        const blob = await storageApi.downloadFile(currentProvider, file.key)
 
         if (previewType === 'text') {
           const text = await blob.text()
@@ -125,7 +141,7 @@ export function FilePreviewDialog({
         URL.revokeObjectURL(blobUrl)
       }
     }
-  }, [open, file, provider, previewType])
+  }, [open, file, currentProvider, previewType])
 
   const handleClose = () => {
     if (blobUrl) {
@@ -133,7 +149,13 @@ export function FilePreviewDialog({
     }
     setBlobUrl(null)
     setTextContent(null)
+    setShowProviderMenu(false)
     onOpenChange(false)
+  }
+
+  const handleDownload = (providerId: string) => {
+    setShowProviderMenu(false)
+    onDownload(providerId)
   }
 
   if (!file) return null
@@ -147,11 +169,78 @@ export function FilePreviewDialog({
               {getPreviewIcon(previewType)}
               <span className="truncate">{file.name}</span>
             </DialogTitle>
-            <Button variant="outline" size="sm" onClick={onDownload}>
-              <Download className="h-4 w-4 mr-2" />
-              Download
-            </Button>
+            
+            {/* Download button with provider selection */}
+            <div className="relative">
+              {providers.length === 1 ? (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => handleDownload(providers[0].id)}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Download
+                </Button>
+              ) : (
+                <>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => setShowProviderMenu(!showProviderMenu)}
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Download
+                    <Badge variant="secondary" className="ml-2">
+                      {providers.length}
+                    </Badge>
+                  </Button>
+                  
+                  {showProviderMenu && (
+                    <div className="absolute right-0 top-full mt-1 w-48 bg-popover border rounded-md shadow-lg z-50">
+                      <div className="p-1">
+                        <p className="text-xs text-muted-foreground px-2 py-1">
+                          Download from:
+                        </p>
+                        {providers.map((provider) => (
+                          <button
+                            key={provider.id}
+                            className="w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded hover:bg-muted text-left"
+                            onClick={() => handleDownload(provider.id)}
+                          >
+                            <Cloud className="h-4 w-4 text-muted-foreground" />
+                            {provider.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
           </div>
+          
+          {/* Show which provider is being used for preview */}
+          {providers.length > 1 && currentProvider && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2">
+              <span>Preview from:</span>
+              <div className="flex gap-1">
+                {providers.map((p) => (
+                  <Badge
+                    key={p.id}
+                    variant={p.id === currentProvider.id ? "default" : "outline"}
+                    className="cursor-pointer text-xs"
+                    onClick={() => {
+                      setSelectedProviderId(p.id)
+                      setBlobUrl(null)
+                      setTextContent(null)
+                    }}
+                  >
+                    {p.name}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
         </DialogHeader>
 
         <div className="flex-1 min-h-0 overflow-hidden">
@@ -230,7 +319,11 @@ export function FilePreviewDialog({
                   <FileIcon className="h-16 w-16 mb-4" />
                   <p className="text-lg font-medium">Preview not available</p>
                   <p className="text-sm">This file type cannot be previewed</p>
-                  <Button variant="outline" className="mt-4" onClick={onDownload}>
+                  <Button 
+                    variant="outline" 
+                    className="mt-4" 
+                    onClick={() => currentProvider && handleDownload(currentProvider.id)}
+                  >
                     <Download className="h-4 w-4 mr-2" />
                     Download to view
                   </Button>

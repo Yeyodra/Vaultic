@@ -186,9 +186,15 @@ export default {
       }
 
       const normalizedKey = key.startsWith('/') ? key.slice(1) : key;
+      console.log('Download request - original key:', key, 'normalized:', normalizedKey);
+      
       const file = await env.STORAGE_BUCKET.get(normalizedKey);
 
       if (!file) {
+        console.log('File not found in bucket:', normalizedKey);
+        // Try listing to see what's in the bucket
+        const listed = await env.STORAGE_BUCKET.list({ limit: 10 });
+        console.log('Available files:', listed.objects.map(o => o.key));
         return errorResponse('File not found', 404);
       }
 

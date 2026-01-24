@@ -1,5 +1,5 @@
 import { useAuthStore } from '@/stores/authStore'
-import type { UserConfig, ProviderConfig } from './types'
+import type { UserConfig, ProviderConfig, FileMetadata } from './types'
 
 const AUTH_WORKER_URL = import.meta.env.VITE_AUTH_WORKER_URL || ''
 
@@ -227,4 +227,64 @@ export async function logout(): Promise<void> {
   }
 
   clearAuth()
+}
+
+// ========================================
+// FILE METADATA (Unified View)
+// ========================================
+
+export async function getFiles(prefix: string = '/'): Promise<FileMetadata[]> {
+  const response = await fetchWithAuth(`${AUTH_WORKER_URL}/files?prefix=${encodeURIComponent(prefix)}`)
+
+  if (!response.ok) {
+    throw new Error('Failed to get files')
+  }
+
+  const data = await response.json() as { files: FileMetadata[] }
+  return data.files
+}
+
+export async function addFileMetadata(file: {
+  key: string
+  name: string
+  size: number
+  isDirectory: boolean
+  providerId: string
+}): Promise<void> {
+  const response = await fetchWithAuth(`${AUTH_WORKER_URL}/files`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(file),
+  })
+
+  if (!response.ok) {
+    throw new Error('Failed to add file metadata')
+  }
+}
+
+export async function removeFileMetadata(key: string, providerId?: string): Promise<void> {
+  let url = `${AUTH_WORKER_URL}/files?key=${encodeURIComponent(key)}`
+  if (providerId) {
+    url += `&providerId=${encodeURIComponent(providerId)}`
+  }
+
+  const response = await fetchWithAuth(url, {
+    method: 'DELETE',
+  })
+
+  if (!response.ok) {
+    throw new Error('Failed to remove file metadata')
+  }
+}
+
+export async function getFileInfo(key: string): Promise<FileMetadata | null> {
+  const response = await fetchWithAuth(`${AUTH_WORKER_URL}/files/info?key=${encodeURIComponent(key)}`)
+
+  if (!response.ok) {
+    if (response.status === 404) return null
+    throw new Error('Failed to get file info')
+  }
+
+  const data = await response.json() as { file: FileMetadata }
+  return data.file
 }

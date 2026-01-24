@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
 import { useUploadStore } from '@/stores/uploadStore'
 import * as storageApi from '@/api/storage'
+import * as authApi from '@/api/auth'
 import type { ProviderConfig, UploadTask } from '@/api/types'
 
 export function useUpload() {
@@ -41,6 +42,23 @@ export function useUpload() {
           updateProgress(taskId, providerId, progress)
         }
       )
+
+      // Sync file metadata to Auth Worker for each successful upload
+      for (const [providerId, result] of results.entries()) {
+        if (result.success && result.key) {
+          try {
+            await authApi.addFileMetadata({
+              key: result.key, // Use key from upload response
+              name: file.name,
+              size: file.size,
+              isDirectory: false,
+              providerId,
+            })
+          } catch (e) {
+            console.warn(`Failed to sync metadata for provider ${providerId}:`, e)
+          }
+        }
+      }
 
       const allSuccess = Array.from(results.values()).every((r) => r.success)
       const errors = Array.from(results.entries())

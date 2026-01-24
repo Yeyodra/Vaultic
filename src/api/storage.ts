@@ -64,7 +64,9 @@ export async function downloadFile(
   )
 
   if (!response.ok) {
-    throw new Error('Failed to download file')
+    const errorText = await response.text()
+    console.error('Download error:', response.status, errorText)
+    throw new Error(`Failed to download file: ${response.status} - ${errorText}`)
   }
 
   return response.blob()
@@ -124,15 +126,15 @@ export async function uploadToMultipleProviders(
   file: File,
   path: string = '/',
   onProgress?: (providerId: string, progress: number) => void
-): Promise<Map<string, { success: boolean; error?: string }>> {
-  const results = new Map<string, { success: boolean; error?: string }>()
+): Promise<Map<string, { success: boolean; error?: string; key?: string }>> {
+  const results = new Map<string, { success: boolean; error?: string; key?: string }>()
 
   const uploads = providers.map(async (provider) => {
     try {
-      await uploadFile(provider, file, path, (progress) => {
+      const uploadResult = await uploadFile(provider, file, path, (progress) => {
         onProgress?.(provider.id, progress)
       })
-      results.set(provider.id, { success: true })
+      results.set(provider.id, { success: true, key: uploadResult.key })
     } catch (error) {
       results.set(provider.id, {
         success: false,
