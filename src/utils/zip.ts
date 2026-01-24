@@ -1,6 +1,5 @@
 import JSZip from 'jszip'
 import type { ProviderConfig, FileMetadata } from '@/api/types'
-import * as storageApi from '@/api/storage'
 
 export interface ZipProgress {
   currentFile: string
@@ -15,18 +14,26 @@ export async function downloadFilesAsZip(
   onProgress?: (progress: ZipProgress) => void
 ): Promise<Blob> {
   const zip = new JSZip()
-  const totalFiles = files.filter(f => !f.isDirectory).length
+  const filesToProcess = files.filter(f => !f.isDirectory)
+  const totalFiles = filesToProcess.length
   let filesProcessed = 0
+  let filesAdded = 0
 
-  for (const file of files) {
-    if (file.isDirectory) continue
+  console.log('Starting ZIP creation for', totalFiles, 'files')
 
+  for (const file of filesToProcess) {
     // Find provider for this file
     const providerId = file.providers[0]
-    if (!providerId) continue
+    if (!providerId) {
+      console.warn(`No provider for file: ${file.name}`)
+      continue
+    }
 
     const provider = providers.find(p => p.id === providerId)
-    if (!provider) continue
+    if (!provider) {
+      console.warn(`Provider not found: ${providerId}`)
+      continue
+    }
 
     onProgress?.({
       currentFile: file.name,
@@ -36,18 +43,41 @@ export async function downloadFilesAsZip(
     })
 
     try {
-      // Download file
-      const blob = await storageApi.downloadFile(provider, file.key)
-      const arrayBuffer = await blob.arrayBuffer()
+      console.log(`Downloading: ${file.name} from ${provider.name}`)
       
-      // Add to ZIP (remove leading slash from key for ZIP path)
-      const zipPath = file.key.startsWith('/') ? file.key.slice(1) : file.key
-      zip.file(zipPath, arrayBuffer)
+      // Download file (without progress tracking for ZIP to avoid issues)
+      const response = await fetch(
+        `${provider.workerUrl}/api/download?key=${encodeURIComponent(file.key)}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${provider.authToken}`
+          }
+        }
+      )
       
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`)
+      }
+      
+      const arrayBuffer = await response.arrayBuffer()
+      console.log(`Downloaded ${file.name}: ${arrayBuffer.byteLength} bytes`)
+      
+      // Add to ZIP using just the filename (not full path)
+      zip.file(file.name, arrayBuffer)
+      filesAdded++
       filesProcessed++
+      
+      console.log(`Added to ZIP: ${file.name}`)
     } catch (error) {
-      console.warn(`Failed to add ${file.name} to ZIP:`, error)
+      console.error(`Failed to add ${file.name} to ZIP:`, error)
+      filesProcessed++
     }
+  }
+
+  console.log(`Files added to ZIP: ${filesAdded}/${totalFiles}`)
+
+  if (filesAdded === 0) {
+    throw new Error('No files could be added to ZIP')
   }
 
   onProgress?.({
@@ -58,11 +88,14 @@ export async function downloadFilesAsZip(
   })
 
   // Generate ZIP blob
+  console.log('Generating ZIP blob...')
   const zipBlob = await zip.generateAsync({ 
     type: 'blob',
     compression: 'DEFLATE',
     compressionOptions: { level: 6 }
   })
+
+  console.log(`ZIP created: ${zipBlob.size} bytes`)
 
   onProgress?.({
     currentFile: '',
