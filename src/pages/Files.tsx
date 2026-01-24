@@ -25,6 +25,7 @@ import { Link } from 'react-router-dom'
 import { formatFileSize, formatDate } from '@/utils/format'
 import { UploadDialog } from '@/components/UploadDialog'
 import { UploadProgress } from '@/components/UploadProgress'
+import { DownloadProgress } from '@/components/DownloadProgress'
 import { DeleteConfirmDialog } from '@/components/DeleteConfirmDialog'
 import { FilePreviewDialog } from '@/components/FilePreviewDialog'
 import type { FileMetadata } from '@/api/types'
@@ -367,6 +368,9 @@ export function Files() {
 
       {/* Upload Progress Widget */}
       <UploadProgress />
+
+      {/* Download Progress Widget */}
+      <DownloadProgress />
     </div>
   )
 }

@@ -56,7 +56,8 @@ export async function uploadFile(
 
 export async function downloadFile(
   provider: ProviderConfig,
-  key: string
+  key: string,
+  onProgress?: (downloaded: number, total: number) => void
 ): Promise<Blob> {
   const response = await fetchStorage(
     provider,
@@ -69,7 +70,36 @@ export async function downloadFile(
     throw new Error(`Failed to download file: ${response.status} - ${errorText}`)
   }
 
-  return response.blob()
+  // If no progress callback or no content-length, just return blob directly
+  const contentLength = response.headers.get('Content-Length')
+  if (!onProgress || !contentLength) {
+    return response.blob()
+  }
+
+  // Stream the response to track progress
+  const total = parseInt(contentLength, 10)
+  const reader = response.body?.getReader()
+  
+  if (!reader) {
+    return response.blob()
+  }
+
+  const chunks: Uint8Array[] = []
+  let downloaded = 0
+
+  while (true) {
+    const { done, value } = await reader.read()
+    
+    if (done) break
+    
+    chunks.push(value)
+    downloaded += value.length
+    onProgress(downloaded, total)
+  }
+
+  // Combine chunks into a single blob
+  const blob = new Blob(chunks as BlobPart[])
+  return blob
 }
 
 export async function deleteFile(

@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react'
 import { useFileStore } from '@/stores/fileStore'
 import { useProviderStore } from '@/stores/providerStore'
+import { useDownloadStore } from '@/stores/downloadStore'
 import * as storageApi from '@/api/storage'
 import * as authApi from '@/api/auth'
 import type { FileMetadata } from '@/api/types'
@@ -22,6 +23,7 @@ export function useFiles() {
   } = useFileStore()
 
   const { providers } = useProviderStore()
+  const { addTask, updateTask } = useDownloadStore()
 
   const [error, setError] = useState<string | null>(null)
 
@@ -99,7 +101,30 @@ export function useFiles() {
           throw new Error('Provider not found')
         }
 
-        const blob = await storageApi.downloadFile(provider, file.key)
+        // Add download task to store
+        const taskId = addTask({
+          fileName: file.name,
+          fileKey: file.key,
+          providerId: provider.id,
+          providerName: provider.name,
+          status: 'downloading',
+          progress: 0,
+          downloadedBytes: 0,
+          totalBytes: file.size,
+        })
+
+        const blob = await storageApi.downloadFile(provider, file.key, (downloaded, total) => {
+          const progress = Math.round((downloaded / total) * 100)
+          updateTask(taskId, {
+            progress,
+            downloadedBytes: downloaded,
+            totalBytes: total,
+          })
+        })
+
+        // Mark as complete
+        updateTask(taskId, { status: 'complete', progress: 100 })
+
         const url = URL.createObjectURL(blob)
         const a = document.createElement('a')
         a.href = url
@@ -118,7 +143,7 @@ export function useFiles() {
         throw err
       }
     },
-    [providers]
+    [providers, addTask, updateTask]
   )
 
   // Navigate to folder
