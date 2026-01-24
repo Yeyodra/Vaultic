@@ -18,6 +18,8 @@ import {
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { formatFileSize, formatDate } from '@/utils/format'
+import { UploadDialog } from '@/components/UploadDialog'
+import { UploadProgress } from '@/components/UploadProgress'
 
 export function Files() {
   const { providers } = useProviderStore()
@@ -25,6 +27,7 @@ export function Files() {
   const [selectedProvider, setSelectedProvider] = useState<string | null>(
     providers[0]?.id || null
   )
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false)
 
   const pathParts = currentPath.split('/').filter(Boolean)
 
@@ -49,7 +52,7 @@ export function Files() {
             </div>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm">
+<Button variant="outline" size="sm" onClick={() => setUploadDialogOpen(true)}>
               <Upload className="h-4 w-4 mr-2" />
               Upload
             </Button>
@@ -192,11 +195,21 @@ export function Files() {
                     </table>
                   )}
                 </ScrollArea>
-              </CardContent>
+                </CardContent>
             </Card>
           </main>
         </div>
       </div>
+
+      {/* Upload Dialog */}
+      <UploadDialog 
+        open={uploadDialogOpen} 
+        onOpenChange={setUploadDialogOpen}
+        currentPath={currentPath}
+      />
+
+      {/* Upload Progress Widget */}
+      <UploadProgress />
     </div>
   )
 }
